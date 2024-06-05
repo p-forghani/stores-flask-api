@@ -1,61 +1,84 @@
 from flask import Flask, request
+from db import stores, items
+from flask_smorest import abort
+import uuid
 
 
 app = Flask(__name__)
 
-stores = [
-    {
-        "name": "my store",
-        "items": [
-            {
-                "name": "Samsung",
-                'price': 1000
-            },
-            {
-                 "name": "Iphone",
-                 "price": 1500,
-            }
-        ]
-    }
-]
-
 
 @app.get("/store")
 def get_stores():
-    return {"stores": stores}
+    '''Return all the stores'''
+    return {"stores": list(stores.values())}
 
 
 @app.post("/store")
 def create_store():
-    request_data = request.get_json()
-    new_store = {"name": request_data["name"], "items": []}
-    stores.append(new_store)
-    return new_store, 201
+    '''Create a new store'''
+    request_data = request.get_json()  # sample_valid_json = {'name': 'luna'}
+    store_id = uuid.uuid4().hex
+    new_store = {**request_data, 'store_id': store_id}
+
+    # Handle KeyError
+    if (
+        'name' not in new_store
+        or 'store_id' not in new_store
+    ):
+        abort(400,
+              message="Bad request, ensure <name> and <store_id> keys included in json")
+    # Handle duplicate stores
+    for store in stores:
+        if (new_store['name'] == store['name'] and
+                new_store['store_id'] == store['store_id']):
+            abort(400, "Store with such name and store_id exists")
+
+    stores[store_id] = new_store
+    return {"store": new_store}, 201
 
 
-@app.post("/store/<string:name>/item")
-def create_item(name):
+@app.post("/item")
+def create_item():
+    '''Create an item'''
     request_data = request.get_json()  # ie: {"name": "laptop", "price": 3}
-    for store in stores:
-        if store['name'] == name:
-            new_item = {"name": request_data['name'],
-                        "price": request_data['price']}
-            store['items'].append(new_item)
-            return new_item, 201
-    return {"message": "Store not found"}, 404
+    item_id = uuid.uuid4().hex
+    new_item = {**request_data, 'item_id': item_id}
+    if (
+        'name' not in new_item
+        or 'price' not in new_item
+        or 'item_id' not in new_item
+    ):
+        abort(400,
+              message="Bad request; Ensure price and name keys are included")
+
+    for item in items:
+        if (
+            new_item['name'] == item['name']
+            and new_item['item_id'] == item['item_id']
+        ):
+            abort(400,
+                  message="Bad request; This item already exist")
+    items[item_id] = new_item
+    return {"item": new_item}, 201
 
 
-@app.get("/store/<string:name>")
-def get_store(name):
-    for store in stores:
-        if store['name'] == name:
-            return store, 200
-    return {"message": "Store not found"}, 404
+@app.get("/store/<string:store_id>")
+def get_store(store_id):
+    """Retrieve a store by its id"""
+    try:
+        return stores[store_id], 200
+    except KeyError:
+        return {"message": "Store not found"}, 404
+
+@app.get("/item")
+def get_all_items():
+    return list(items.values())
 
 
-@app.get('/store/<string:name>/item')
-def get_store_items(name):
-    for store in stores:
-        if store['name'] == name:
-            return store['items'], 200
-    return {"message": "Store not found"}, 404
+@app.get('/item/<string:item_id>')
+def get_item(item_id):
+    '''Retrieve item by its id'''
+    try:
+        return items[item_id], 200
+    except KeyError:
+        return {"message": "Store not found"}, 404
