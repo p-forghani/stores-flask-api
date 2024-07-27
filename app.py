@@ -1,84 +1,40 @@
-from flask import Flask, request
-from db import stores, items
-from flask_smorest import abort
-import uuid
+import os
+from flask import Flask
+from flask_smorest import Api
+
+import models  # noqa
+from db import db
+from resources.item import blp as ItemBlueprint
+from resources.store import blp as StoreBlueprint
+from resources.tag import blp as TagBlueprint
 
 
-app = Flask(__name__)
+def create_app(db_url=None):
+    app = Flask(__name__)
+
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+    app.config["API_TITLE"] = "Stores REST API"
+    app.config["API_VERSION"] = "v1"
+    app.config["OPENAPI_VERSION"] = "3.0.3"
+    app.config["OPENAPI_URL_PREFIX"] = "/"
+    app.config["OPENAPI_SWAGGER_UI_PATH"] = "/swagger-ui"
+    app.config["OPENAPI_SWAGGER_UI_URL"] = (
+        "https://cdn.jsdelivr.net/npm/swagger-ui-dist/")
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        db_url or os.getenv("DATABASE_URL", "sqlite:///data.db"))
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    db.init_app(app)
+
+    api = Api(app)
+
+    with app.app_context():
+        db.create_all()
+
+    api.register_blueprint(ItemBlueprint)
+    api.register_blueprint(StoreBlueprint)
+    api.register_blueprint(TagBlueprint)
+
+    return app
 
 
-@app.get("/store")
-def get_stores():
-    '''Return all the stores'''
-    return {"stores": list(stores.values())}
-
-
-@app.post("/store")
-def create_store():
-    '''Create a new store'''
-    request_data = request.get_json()  # sample_valid_json = {'name': 'luna'}
-    store_id = uuid.uuid4().hex
-    new_store = {**request_data, 'store_id': store_id}
-
-    # Handle KeyError
-    if (
-        'name' not in new_store
-        or 'store_id' not in new_store
-    ):
-        abort(400,
-              message="Bad request, ensure <name> and <store_id> keys included in json")
-    # Handle duplicate stores
-    for store in stores:
-        if (new_store['name'] == store['name'] and
-                new_store['store_id'] == store['store_id']):
-            abort(400, "Store with such name and store_id exists")
-
-    stores[store_id] = new_store
-    return {"store": new_store}, 201
-
-
-@app.post("/item")
-def create_item():
-    '''Create an item'''
-    request_data = request.get_json()  # ie: {"name": "laptop", "price": 3}
-    item_id = uuid.uuid4().hex
-    new_item = {**request_data, 'item_id': item_id}
-    if (
-        'name' not in new_item
-        or 'price' not in new_item
-        or 'item_id' not in new_item
-    ):
-        abort(400,
-              message="Bad request; Ensure price and name keys are included")
-
-    for item in items:
-        if (
-            new_item['name'] == item['name']
-            and new_item['item_id'] == item['item_id']
-        ):
-            abort(400,
-                  message="Bad request; This item already exist")
-    items[item_id] = new_item
-    return {"item": new_item}, 201
-
-
-@app.get("/store/<string:store_id>")
-def get_store(store_id):
-    """Retrieve a store by its id"""
-    try:
-        return stores[store_id], 200
-    except KeyError:
-        return {"message": "Store not found"}, 404
-
-@app.get("/item")
-def get_all_items():
-    return list(items.values())
-
-
-@app.get('/item/<string:item_id>')
-def get_item(item_id):
-    '''Retrieve item by its id'''
-    try:
-        return items[item_id], 200
-    except KeyError:
-        return {"message": "Store not found"}, 404
+create_app()
