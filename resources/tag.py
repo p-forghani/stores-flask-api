@@ -91,8 +91,8 @@ class TagsList(MethodView):
 class LinkTagsToItem(MethodView):
     @blp.response(201, TagSchema)
     def post(self, item_id, tag_id):
-        item = db.get_or_404(ItemModel, item_id)
-        tag = db.get_or_404(TagModel, tag_id)
+        item = ItemModel.query.get_or_404(item_id)
+        tag = TagModel.query.get_or_404(tag_id)
 
         # Ensure tag and item are in the same store
         if item.store.id != tag.store.id:
@@ -113,8 +113,8 @@ class LinkTagsToItem(MethodView):
 
     @blp.response(200, TagAndItemSchema)
     def delete(self, item_id, tag_id):
-        item = db.get_or_404(ItemModel, item_id)
-        tag = db.get_or_404(TagModel, tag_id)
+        item = ItemModel.query.get_or_404(item_id)
+        tag = TagModel.query.get_or_404(tag_id)
 
         # Remove the tag from tags
         item.tags.remove(tag)
