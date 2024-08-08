@@ -3,10 +3,11 @@ from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
 from passlib.hash import pbkdf2_sha256
 from flask_jwt_extended import create_access_token, get_jwt, jwt_required
+from datetime import timezone, datetime
 
 from db import db
 from models.user import UserModel
-from blocklist import BLOCKLIST
+from redis_server import r as redis_server
 from schemas import UserSchema
 
 blp = Blueprint("users", __name__, description="Operations on users")
@@ -99,6 +100,17 @@ class UserLogout(MethodView):
 
     @jwt_required()
     def post(self):
-        jti = get_jwt()['jti']
-        BLOCKLIST.add(jti)
+        jwt = get_jwt()
+        # Retreat Unique Identifier of the token
+        jti = jwt['jti']
+        # Retreat expiry time of the token
+        exp_timestamp = jwt['exp']
+        # Store the current time
+        now = datetime.timestamp(datetime.now(timezone.utc))
+        # Check if expiry time of the token is passed
+        if exp_timestamp > now:
+            # Add the unique identifier to redis
+            redis_server.set(jti, 'true')
+            # Set the expiry time of the token in the redis
+            redis_server.expireat(jti, exp_timestamp)
         return {"message": "Successfully logged out"}
