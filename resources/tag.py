@@ -1,6 +1,7 @@
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
+from flask_jwt_extended import jwt_required
 
 from db import db
 from models.store import StoreModel
@@ -15,6 +16,7 @@ blp = Blueprint("tags", __name__, description="Operations on tags")
 class TagsInStore(MethodView):
     """Handles the tags in a store"""
 
+    @jwt_required()
     # Ensure the response follow the TagSchema
     @blp.response(200, schema=TagSchema(many=True))
     def get(self, store_id):
@@ -29,6 +31,7 @@ class TagsInStore(MethodView):
         # The default status code is 200, so you don't need to return it
         return tags
 
+    @jwt_required()
     # Parse, validate and inject the json payload into the function
     @blp.arguments(TagSchema)
     @blp.response(201, TagSchema)
@@ -55,11 +58,13 @@ class TagsInStore(MethodView):
 
 @blp.route("/tag/<string:tag_id>")
 class Tag(MethodView):
+    @jwt_required()
     @blp.response(200, schema=TagSchema)
     def get(self, tag_id):
         tag = db.get_or_404(TagModel, tag_id)
         return tag
 
+    @jwt_required()
     @blp.response(202,
                   description="Deletes a tag if no item is tagged with it",
                   example={"message": "Tag deleted"})
@@ -81,6 +86,8 @@ class Tag(MethodView):
 
 @blp.route("/tag")
 class TagsList(MethodView):
+
+    @jwt_required()
     @blp.response(200, TagSchema(many=True))
     def get(self):
         tags = db.session.query(TagModel).all()
@@ -89,6 +96,8 @@ class TagsList(MethodView):
 
 @blp.route("/item/<string:item_id>/tag/<string:tag_id>")
 class LinkTagsToItem(MethodView):
+
+    @jwt_required()
     @blp.response(201, TagSchema)
     def post(self, item_id, tag_id):
         item = ItemModel.query.get_or_404(item_id)
@@ -111,6 +120,7 @@ class LinkTagsToItem(MethodView):
 
         return tag, 201
 
+    @jwt_required()
     @blp.response(200, TagAndItemSchema)
     def delete(self, item_id, tag_id):
         item = ItemModel.query.get_or_404(item_id)
