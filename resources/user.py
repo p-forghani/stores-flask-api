@@ -2,7 +2,8 @@ from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
 from passlib.hash import pbkdf2_sha256
-from flask_jwt_extended import create_access_token, get_jwt, jwt_required
+from flask_jwt_extended import (create_access_token, get_jwt, jwt_required,
+                                get_jwt_identity, create_refresh_token)
 from datetime import timezone, datetime
 
 from db import db
@@ -11,6 +12,18 @@ from redis_server import r as redis_server
 from schemas import UserSchema
 
 blp = Blueprint("users", __name__, description="Operations on users")
+
+
+@blp.route("/refresh")
+class TokenRefresh(MethodView):
+    @jwt_required(refresh=True)
+    def post(self):
+        current_user = get_jwt_identity()
+        new_token = create_access_token(identity=current_user, fresh=False)
+        jti = get_jwt()['jti']
+        # Add the jti to blocklist
+        redis_server.set(jti, 'true')
+        return {"access_token": new_token}, 200
 
 
 @blp.route('/register')
@@ -88,8 +101,10 @@ class UserLogin(MethodView):
         # If user exists, verify the password
         if user and pbkdf2_sha256.verify(user_data['password'], user.password):
             # Return the access token to client
-            access_token = create_access_token(identity=user.id)
-            return {'access_token': access_token}, 200
+            access_token = create_access_token(identity=user.id, fresh=True)
+            refresh_token = create_refresh_token(identity=user.id)
+            return {'access_token': access_token,
+                    "refresh_token": refresh_token}, 200
 
         abort(401,
               message="Invalid credentials")

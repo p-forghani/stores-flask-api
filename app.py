@@ -2,6 +2,7 @@ import os
 from flask import Flask, jsonify
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
+from datetime import timedelta
 
 import models  # noqa
 from db import db
@@ -31,12 +32,24 @@ def create_app(db_url=None):
     api = Api(app)
 
     app.config['JWT_SECRET_KEY'] = 'pouria'
+    # Set the expiry time of the tokens to 5 mins instead of the default 15
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=5)
+
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader
     def check_if_token_in_blocklist(jwt_header, jwt_payload):
         # return jwt_payload['jti'] in BLOCKLIST
         return redis_server.exists(jwt_payload['jti']) == 1
+
+    @jwt.needs_fresh_token_loader
+    def token_not_fresh_callback(jwt_header, jwt_payload):
+        return (jsonify(
+            {
+                "description": "The token is not fresh",
+                "error": "fresh_token_required"
+            }
+        ), 401)
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):

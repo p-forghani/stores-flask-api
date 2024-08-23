@@ -61,7 +61,10 @@ class ItemList(MethodView):
     def get(self):
         return ItemModel.query.all()
 
-    @jwt_required()
+    # Require a fresh access token to access to the endpoint
+    # Usually fresh access tokens are required for destructive operations such
+    # as changing passwords or deleting accounts
+    @jwt_required(fresh=True)
     @blp.arguments(schema=ItemSchema)
     @blp.response(201, schema=ItemSchema)
     def post(self, item_data):
